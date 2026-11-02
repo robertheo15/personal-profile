@@ -10,10 +10,10 @@ This project is a static, ultra-fast personal portfolio and blog built on the **
 
 | Layer | Technology | Role in Project |
 | :--- | :--- | :--- |
-| **Framework** | [Astro v4](https://astro.build/) (Static Site Generation) | File-based routing, layouts, build-time content rendering, RSS & Sitemap generation. |
+| **Framework** | [Astro v7.4](https://astro.build/) (Static Site Generation) | File-based routing, layouts, build-time content rendering, RSS & Sitemap generation. |
 | **Interactive UI** | [SolidJS](https://www.solidjs.com/) (`@astrojs/solid-js`) | Client-side interactive islands (`Search.tsx`, `SearchCollection.tsx`, `Counter.tsx`). |
-| **Styling** | [Tailwind CSS v3](https://tailwindcss.com/) + `@tailwindcss/typography` | Utility-first styling, dark/light mode (`class` strategy), and Markdown prose styling. |
-| **Content Engine** | Astro Content Collections + [Zod](https://zod.dev/) | Type-safe Markdown (`.md`) and MDX (`.mdx`) content in `src/content/`. |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) + `@tailwindcss/typography` | Utility-first styling via `@tailwindcss/vite`, dark/light mode (`class` strategy), and Markdown prose styling. |
+| **Content Engine** | Astro Content Layer API + [Zod 4](https://zod.dev/) | Type-safe Markdown (`.md`) and MDX (`.mdx`) content loaded via `glob()` loaders in `src/content.config.ts`. |
 | **Client Search** | [Fuse.js v7](https://www.fusejs.io/) | Fuzzy client-side search across blog posts and projects. |
 | **Language** | TypeScript (Strict mode) | Type checking across `.ts`, `.tsx`, and `.astro` files (`astro check`). |
 
@@ -28,7 +28,7 @@ flowchart TD
     subgraph Content_and_Config ["1. Content & Configuration Layer"]
         CONSTS["src/consts.ts<br/>(Site Meta, Nav Links, Socials)"]
         CONTENT["src/content/{blog,projects,work,legal}<br/>(.md / .mdx files)"]
-        SCHEMA["src/content/config.ts<br/>(Zod Validation Schemas)"]
+        SCHEMA["src/content.config.ts<br/>(Content Layer glob loaders & Zod 4 Schemas)"]
         CONTENT --> SCHEMA
     end
 
@@ -87,9 +87,9 @@ Always use `@` path aliases instead of relative `../../` paths when importing fr
 ### Repository Structure
 ```text
 /
-├── astro.config.mjs               # Astro config: site URL, MDX, Sitemap, SolidJS, Tailwind
+├── astro.config.mjs               # Astro config: site URL, MDX, Sitemap, SolidJS, @tailwindcss/vite
 ├── tailwind.config.mjs            # Tailwind config: dark mode ('class'), Atkinson font, star/meteor keyframes
-├── tsconfig.json                  # TypeScript config: SolidJS JSX settings & @* path alias
+├── tsconfig.json                  # TypeScript config: SolidJS JSX settings, .astro/types.d.ts & @* path alias
 ├── package.json                   # Scripts and dependencies
 ├── public/                        # Static assets served directly at root URL '/'
 │   ├── fonts/                     # Atkinson Hyperlegible font files (regular & bold .woff)
@@ -106,13 +106,13 @@ Always use `@` path aliases instead of relative `../../` paths when importing fr
 │   └── ui.svg                     # UI icon sprite (#search, #rss, #sun, #moon, #menu, #x, #calendar, etc.)
 └── src/
     ├── consts.ts                  # SINGLE SOURCE OF TRUTH for site title, page titles, nav links, socials
+    ├── content.config.ts          # Content Layer API: glob loaders & Zod 4 schemas for collections
     ├── types.ts                   # TypeScript interfaces for src/consts.ts (Site, Page, Links, Socials)
     ├── styles/
-    │   └── global.css             # Tailwind directives, font-face, dark mode base styles, .animate, .blend
+    │   └── global.css             # Tailwind v4 import, font-face, dark mode base styles, .animate, .blend
     ├── lib/
     │   └── utils.ts               # Helpers: cn() (clsx+twMerge), formatDate(), readingTime(), truncateText()
-    ├── content/                   # Content Collections (Markdown / MDX data store)
-    │   ├── config.ts              # Zod schemas defining 'work', 'blog', 'projects', 'legal'
+    ├── content/                   # Content Collections Markdown / MDX data store
     │   ├── blog/                  # Blog posts (each in a subfolder with index.md or index.mdx)
     │   ├── projects/              # Portfolio projects (subfolder with index.md)
     │   ├── work/                  # Work history entries (flat .md files, e.g. google.md)
@@ -313,10 +313,14 @@ Follow these exact 3 steps to add a new page and include it in the navigation ba
 
 If you need a brand-new structured content type:
 
-1. **Define the Schema in `src/content/config.ts`**:
+1. **Define the Schema in `src/content.config.ts`**:
    ```ts
+   import { defineCollection } from "astro:content"
+   import { glob } from "astro/loaders"
+   import { z } from "astro/zod"
+
    const talks = defineCollection({
-     type: "content",
+     loader: glob({ pattern: "**/*.{md,mdx}", base: "./src/content/talks" }),
      schema: z.object({
        title: z.string(),
        event: z.string(),
